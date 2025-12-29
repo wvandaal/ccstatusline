@@ -14,3 +14,4 @@ export * from './ScopeSaveDialog';
 export * from './StatusLinePreview';
 export * from './TerminalOptionsMenu';
 export * from './TerminalWidthMenu';
+export * from './UninstallScopeSelector';

@@ -3,10 +3,20 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import type { ClaudeSettings } from '../types/ClaudeSettings';
+import type {
+    ClaudeInstallationStatus,
+    ClaudeSettings,
+    ClaudeSettingsScope,
+    ScopeInstallationStatus
+} from '../types/ClaudeSettings';
 
 // Re-export for backward compatibility
-export type { ClaudeSettings };
+export type {
+    ClaudeInstallationStatus,
+    ClaudeSettings,
+    ClaudeSettingsScope,
+    ScopeInstallationStatus
+};
 
 // Use fs.promises directly
 const readFile = fs.promises.readFile;
@@ -52,15 +62,66 @@ export function getClaudeConfigDir(): string {
 }
 
 /**
- * Gets the full path to the Claude settings.json file.
+ * Gets the full path to the Claude settings.json file (user scope).
+ * @deprecated Use getClaudeSettingsPathForScope('user') instead
  */
 export function getClaudeSettingsPath(): string {
     return path.join(getClaudeConfigDir(), 'settings.json');
 }
 
-export async function loadClaudeSettings(): Promise<ClaudeSettings> {
+// ============================================================================
+// Scoped Settings Functions
+// ============================================================================
+
+/**
+ * Finds the project root directory.
+ * Uses git root if available, otherwise falls back to cwd.
+ */
+export function getProjectRoot(): string {
     try {
-        const settingsPath = getClaudeSettingsPath();
+        const gitRoot = execSync('git rev-parse --show-toplevel', {
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'ignore']
+        }).trim();
+        return gitRoot;
+    } catch {
+        return process.cwd();
+    }
+}
+
+/**
+ * Gets the Claude Code settings.json path for a specific scope.
+ */
+export function getClaudeSettingsPathForScope(scope: ClaudeSettingsScope): string {
+    switch (scope) {
+    case 'user':
+        return path.join(getClaudeConfigDir(), 'settings.json');
+    case 'project':
+        return path.join(getProjectRoot(), '.claude', 'settings.json');
+    case 'local':
+        return path.join(getProjectRoot(), '.claude', 'settings.local.json');
+    }
+}
+
+/**
+ * Gets all Claude Code settings paths for display/debugging.
+ */
+export function getAllClaudeSettingsPaths(): Record<ClaudeSettingsScope, string> {
+    return {
+        user: getClaudeSettingsPathForScope('user'),
+        project: getClaudeSettingsPathForScope('project'),
+        local: getClaudeSettingsPathForScope('local')
+    };
+}
+
+/**
+ * Loads Claude Code settings from a specific scope.
+ */
+export async function loadClaudeSettingsFromScope(
+    scope: ClaudeSettingsScope
+): Promise<ClaudeSettings> {
+    try {
+        const settingsPath = getClaudeSettingsPathForScope(scope);
         if (!fs.existsSync(settingsPath)) {
             return {};
         }
@@ -71,31 +132,119 @@ export async function loadClaudeSettings(): Promise<ClaudeSettings> {
     }
 }
 
-export async function saveClaudeSettings(
-    settings: ClaudeSettings
+/**
+ * Saves Claude Code settings to a specific scope.
+ */
+export async function saveClaudeSettingsToScope(
+    settings: ClaudeSettings,
+    scope: ClaudeSettingsScope
 ): Promise<void> {
-    const settingsPath = getClaudeSettingsPath();
+    const settingsPath = getClaudeSettingsPathForScope(scope);
     const dir = path.dirname(settingsPath);
     await mkdir(dir, { recursive: true });
     await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
 }
 
-export async function isInstalled(): Promise<boolean> {
-    const settings = await loadClaudeSettings();
-    // Check if command is either npx or bunx version AND padding is 0 (or undefined for new installs)
+/**
+ * Checks if ccstatusline is installed in a single scope.
+ */
+async function checkScopeInstallation(
+    scope: ClaudeSettingsScope
+): Promise<ScopeInstallationStatus> {
+    const settingsPath = getClaudeSettingsPathForScope(scope);
+    const settings = await loadClaudeSettingsFromScope(scope);
+    const command = settings.statusLine?.command ?? null;
+
     const validCommands = [
-        // Default autoinstalled npm command
         CCSTATUSLINE_COMMANDS.NPM,
-        // Default autoinstalled bunx command
         CCSTATUSLINE_COMMANDS.BUNX,
-        // Self managed installation command
         CCSTATUSLINE_COMMANDS.SELF_MANAGED
     ];
-    return (
-        validCommands.includes(settings.statusLine?.command ?? '')
+
+    const installed = command !== null
+        && validCommands.includes(command)
         && (settings.statusLine?.padding === 0
-            || settings.statusLine?.padding === undefined)
-    );
+            || settings.statusLine?.padding === undefined);
+
+    return {
+        installed,
+        command,
+        path: settingsPath
+    };
+}
+
+/**
+ * Gets the installation status across all scopes.
+ */
+export async function getInstallationStatus(): Promise<ClaudeInstallationStatus> {
+    const [user, project, local] = await Promise.all([
+        checkScopeInstallation('user'),
+        checkScopeInstallation('project'),
+        checkScopeInstallation('local')
+    ]);
+
+    return { user, project, local };
+}
+
+/**
+ * Installs ccstatusline to a specific Claude Code settings scope.
+ */
+export async function installStatusLineToScope(
+    scope: ClaudeSettingsScope,
+    useBunx = false
+): Promise<void> {
+    const settings = await loadClaudeSettingsFromScope(scope);
+
+    settings.statusLine = {
+        type: 'command',
+        command: useBunx
+            ? CCSTATUSLINE_COMMANDS.BUNX
+            : CCSTATUSLINE_COMMANDS.NPM,
+        padding: 0
+    };
+
+    await saveClaudeSettingsToScope(settings, scope);
+}
+
+/**
+ * Uninstalls ccstatusline from a specific Claude Code settings scope.
+ */
+export async function uninstallStatusLineFromScope(
+    scope: ClaudeSettingsScope
+): Promise<void> {
+    const settings = await loadClaudeSettingsFromScope(scope);
+
+    if (settings.statusLine) {
+        delete settings.statusLine;
+        await saveClaudeSettingsToScope(settings, scope);
+    }
+}
+
+/**
+ * Loads Claude Code settings from user scope.
+ * @deprecated Use loadClaudeSettingsFromScope('user') instead
+ */
+export async function loadClaudeSettings(): Promise<ClaudeSettings> {
+    return loadClaudeSettingsFromScope('user');
+}
+
+/**
+ * Saves Claude Code settings to user scope.
+ * @deprecated Use saveClaudeSettingsToScope(settings, 'user') instead
+ */
+export async function saveClaudeSettings(
+    settings: ClaudeSettings
+): Promise<void> {
+    await saveClaudeSettingsToScope(settings, 'user');
+}
+
+/**
+ * Checks if ccstatusline is installed in user scope.
+ * @deprecated Use getInstallationStatus() instead for multi-scope support
+ */
+export async function isInstalled(): Promise<boolean> {
+    const status = await getInstallationStatus();
+    return status.user.installed || status.project.installed || status.local.installed;
 }
 
 export function isBunxAvailable(): boolean {
@@ -109,31 +258,34 @@ export function isBunxAvailable(): boolean {
     }
 }
 
+/**
+ * Installs ccstatusline to user scope.
+ * @deprecated Use installStatusLineToScope(scope, useBunx) instead
+ */
 export async function installStatusLine(useBunx = false): Promise<void> {
-    const settings = await loadClaudeSettings();
-
-    // Update settings with our status line (confirmation already handled in TUI)
-    settings.statusLine = {
-        type: 'command',
-        command: useBunx
-            ? CCSTATUSLINE_COMMANDS.BUNX
-            : CCSTATUSLINE_COMMANDS.NPM,
-        padding: 0
-    };
-
-    await saveClaudeSettings(settings);
+    await installStatusLineToScope('user', useBunx);
 }
 
+/**
+ * Uninstalls ccstatusline from user scope.
+ * @deprecated Use uninstallStatusLineFromScope(scope) instead
+ */
 export async function uninstallStatusLine(): Promise<void> {
-    const settings = await loadClaudeSettings();
-
-    if (settings.statusLine) {
-        delete settings.statusLine;
-        await saveClaudeSettings(settings);
-    }
+    await uninstallStatusLineFromScope('user');
 }
 
+/**
+ * Gets the existing statusLine command from user scope.
+ * @deprecated Use getInstallationStatus() instead
+ */
 export async function getExistingStatusLine(): Promise<string | null> {
-    const settings = await loadClaudeSettings();
-    return settings.statusLine?.command ?? null;
+    const status = await getInstallationStatus();
+    // Return the first installed command found
+    if (status.local.command)
+        return status.local.command;
+    if (status.project.command)
+        return status.project.command;
+    if (status.user.command)
+        return status.user.command;
+    return null;
 }

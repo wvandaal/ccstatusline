@@ -13,6 +13,10 @@ import React, {
     useState
 } from 'react';
 
+import type {
+    ClaudeInstallationStatus,
+    ClaudeSettingsScope
+} from '../types/ClaudeSettings';
 import type { CustomModule } from '../types/CustomModule';
 import type { Settings } from '../types/Settings';
 import type {
@@ -21,13 +25,11 @@ import type {
 } from '../types/SettingsScope';
 import type { WidgetItem } from '../types/Widget';
 import {
-    CCSTATUSLINE_COMMANDS,
-    getClaudeSettingsPath,
-    getExistingStatusLine,
-    installStatusLine,
+    getAllClaudeSettingsPaths,
+    getInstallationStatus,
+    installStatusLineToScope,
     isBunxAvailable,
-    isInstalled,
-    uninstallStatusLine
+    uninstallStatusLineFromScope
 } from '../utils/claude-settings';
 import {
     checkPowerlineFonts,
@@ -59,7 +61,8 @@ import {
     ScopeSaveDialog,
     StatusLinePreview,
     TerminalOptionsMenu,
-    TerminalWidthMenu
+    TerminalWidthMenu,
+    UninstallScopeSelector
 } from './components';
 
 export const App: React.FC = () => {
@@ -67,20 +70,21 @@ export const App: React.FC = () => {
     const [settings, setSettings] = useState<Settings | null>(null);
     const [originalSettings, setOriginalSettings] = useState<Settings | null>(null);
     const [hasChanges, setHasChanges] = useState(false);
-    const [screen, setScreen] = useState<'main' | 'lines' | 'items' | 'colorLines' | 'colors' | 'terminalWidth' | 'terminalConfig' | 'globalOverrides' | 'confirm' | 'powerline' | 'install' | 'scopes' | 'scopeSave' | 'customModules' | 'moduleEditor'>('main');
+    const [screen, setScreen] = useState<'main' | 'lines' | 'items' | 'colorLines' | 'colors' | 'terminalWidth' | 'terminalConfig' | 'globalOverrides' | 'confirm' | 'powerline' | 'install' | 'uninstall' | 'scopes' | 'scopeSave' | 'customModules' | 'moduleEditor'>('main');
     // Scope-related state
     const [settingsSources, setSettingsSources] = useState<SettingsSources | null>(null);
     const [saveScope, setSaveScope] = useState<SettingsScope>('user');
     const scopePaths = getAllScopePaths();
+    // Claude Code installation state
+    const [installationStatus, setInstallationStatus] = useState<ClaudeInstallationStatus | null>(null);
+    const claudeSettingsPaths = getAllClaudeSettingsPaths();
     const [selectedLine, setSelectedLine] = useState(0);
     const [menuSelections, setMenuSelections] = useState<Record<string, number>>({});
     const [confirmDialog, setConfirmDialog] = useState<{ message: string; action: () => Promise<void> } | null>(null);
-    const [isClaudeInstalled, setIsClaudeInstalled] = useState(false);
     const [terminalWidth, setTerminalWidth] = useState(process.stdout.columns || 80);
     const [powerlineFontStatus, setPowerlineFontStatus] = useState<PowerlineFontStatus>({ installed: false });
     const [installingFonts, setInstallingFonts] = useState(false);
     const [fontInstallMessage, setFontInstallMessage] = useState<string | null>(null);
-    const [existingStatusLine, setExistingStatusLine] = useState<string | null>(null);
     const [saveMessage, setSaveMessage] = useState<string | null>(null);
     const [previewIsTruncated, setPreviewIsTruncated] = useState(false);
     // Module editor state
@@ -89,8 +93,8 @@ export const App: React.FC = () => {
     const [moduleKind, setModuleKind] = useState<'text' | 'command'>('text');
 
     useEffect(() => {
-        // Load existing status line
-        void getExistingStatusLine().then(setExistingStatusLine);
+        // Load installation status across all scopes
+        void getInstallationStatus().then(setInstallationStatus);
 
         void loadScopedSettings({ includeSourceInfo: true }).then((resolved) => {
             // Set global chalk level based on settings (default to 256 colors for compatibility)
@@ -108,7 +112,6 @@ export const App: React.FC = () => {
                 setSaveScope('user');
             }
         });
-        void isInstalled().then(setIsClaudeInstalled);
 
         // Check for Powerline fonts on startup (use sync version that doesn't call execSync)
         const fontStatus = checkPowerlineFonts();
@@ -168,40 +171,48 @@ export const App: React.FC = () => {
         }
     });
 
-    const handleInstallSelection = useCallback((command: string, displayName: string, useBunx: boolean) => {
-        void getExistingStatusLine().then((existing) => {
-            const isAlreadyInstalled = [CCSTATUSLINE_COMMANDS.NPM, CCSTATUSLINE_COMMANDS.BUNX, CCSTATUSLINE_COMMANDS.SELF_MANAGED].includes(existing ?? '');
-            let message: string;
+    // Derive isClaudeInstalled from installationStatus
+    const isClaudeInstalled = installationStatus
+        ? (installationStatus.user.installed
+            || installationStatus.project.installed
+            || installationStatus.local.installed)
+        : false;
 
-            if (existing && !isAlreadyInstalled) {
-                message = `This will modify ${getClaudeSettingsPath()}\n\nA status line is already configured: "${existing}"\nReplace it with ${command}?`;
-            } else if (isAlreadyInstalled) {
-                message = `ccstatusline is already installed in ${getClaudeSettingsPath()}\nUpdate it with ${command}?`;
-            } else {
-                message = `This will modify ${getClaudeSettingsPath()} to add ccstatusline with ${displayName}.\nContinue?`;
+    const handleInstall = useCallback(async (options: {
+        useBunx: boolean;
+        claudeScope: ClaudeSettingsScope;
+        ccstatuslineScope: SettingsScope;
+    }) => {
+        // Install to Claude Code settings
+        await installStatusLineToScope(options.claudeScope, options.useBunx);
+
+        // Update ccstatusline scope if changed
+        if (options.ccstatuslineScope !== saveScope) {
+            setSaveScope(options.ccstatuslineScope);
+            // Create settings file if it doesn't exist
+            if (settingsSources && !settingsSources[options.ccstatuslineScope] && settings) {
+                await createScopeSettings(options.ccstatuslineScope, settings);
+                // Reload sources
+                const resolved = await loadScopedSettings({ includeSourceInfo: true });
+                setSettingsSources(resolved.sources);
             }
+        }
 
-            setConfirmDialog({
-                message,
-                action: async () => {
-                    await installStatusLine(useBunx);
-                    setIsClaudeInstalled(true);
-                    setExistingStatusLine(command);
-                    setScreen('main');
-                    setConfirmDialog(null);
-                }
-            });
-            setScreen('confirm');
-        });
+        // Refresh installation status
+        const newStatus = await getInstallationStatus();
+        setInstallationStatus(newStatus);
+        setScreen('main');
+    }, [saveScope, settingsSources, settings]);
+
+    const handleUninstall = useCallback(async (scopes: ClaudeSettingsScope[]) => {
+        // Uninstall from each selected scope
+        await Promise.all(scopes.map(scope => uninstallStatusLineFromScope(scope)));
+
+        // Refresh installation status
+        const newStatus = await getInstallationStatus();
+        setInstallationStatus(newStatus);
+        setScreen('main');
     }, []);
-
-    const handleNpxInstall = useCallback(() => {
-        handleInstallSelection(CCSTATUSLINE_COMMANDS.NPM, 'npx', false);
-    }, [handleInstallSelection]);
-
-    const handleBunxInstall = useCallback(() => {
-        handleInstallSelection(CCSTATUSLINE_COMMANDS.BUNX, 'bunx', true);
-    }, [handleInstallSelection]);
 
     if (!settings) {
         return <Text>Loading settings...</Text>;
@@ -209,20 +220,10 @@ export const App: React.FC = () => {
 
     const handleInstallUninstall = () => {
         if (isClaudeInstalled) {
-            // Uninstall
-            setConfirmDialog({
-                message: `This will remove ccstatusline from ${getClaudeSettingsPath()}. Continue?`,
-                action: async () => {
-                    await uninstallStatusLine();
-                    setIsClaudeInstalled(false);
-                    setExistingStatusLine(null);
-                    setScreen('main');
-                    setConfirmDialog(null);
-                }
-            });
-            setScreen('confirm');
+            // Show uninstall scope selector
+            setScreen('uninstall');
         } else {
-            // Show install menu to select npx or bunx
+            // Show install wizard
             setScreen('install');
         }
     };
@@ -458,12 +459,24 @@ export const App: React.FC = () => {
                         }}
                     />
                 )}
-                {screen === 'install' && (
+                {screen === 'install' && installationStatus && (
                     <InstallMenu
                         bunxAvailable={isBunxAvailable()}
-                        existingStatusLine={existingStatusLine}
-                        onSelectNpx={handleNpxInstall}
-                        onSelectBunx={handleBunxInstall}
+                        installationStatus={installationStatus}
+                        claudeSettingsPaths={claudeSettingsPaths}
+                        ccstatuslinePaths={scopePaths}
+                        currentCcstatuslineScope={saveScope}
+                        onInstall={options => void handleInstall(options)}
+                        onCancel={() => {
+                            setScreen('main');
+                        }}
+                    />
+                )}
+                {screen === 'uninstall' && installationStatus && (
+                    <UninstallScopeSelector
+                        installationStatus={installationStatus}
+                        claudeSettingsPaths={claudeSettingsPaths}
+                        onUninstall={scopes => void handleUninstall(scopes)}
                         onCancel={() => {
                             setScreen('main');
                         }}
