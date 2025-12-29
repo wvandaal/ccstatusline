@@ -29,6 +29,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onSelect, isClaudeInstalled,
         { label: '', value: '_gap1', selectable: false },  // Visual gap
         { label: '💻 Terminal Options', value: 'terminalConfig', selectable: true },
         { label: '🌐 Global Overrides', value: 'globalOverrides', selectable: true },
+        { label: '📂 Manage Scopes', value: 'scopes', selectable: true },
         { label: '', value: '_gap2', selectable: false },  // Visual gap
         { label: isClaudeInstalled ? '🔌 Uninstall from Claude Code' : '📦 Install to Claude Code', value: 'install', selectable: true }
     ];
@@ -65,6 +66,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onSelect, isClaudeInstalled,
             colors: 'Customize colors for each widget including foreground, background, and bold styling',
             powerline: 'Install Powerline fonts for enhanced visual separators and symbols in your status line',
             globalOverrides: 'Set global padding, separators, and color overrides that apply to all widgets',
+            scopes: 'Manage settings scopes (User, Project, Local) with different precedence levels',
             install: isClaudeInstalled
                 ? 'Remove ccstatusline from your Claude Code settings'
                 : 'Add ccstatusline to your Claude Code settings for automatic status line rendering',

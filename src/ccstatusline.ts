@@ -11,10 +11,6 @@ import type { StatusJSON } from './types/StatusJSON';
 import { StatusJSONSchema } from './types/StatusJSON';
 import { updateColorMap } from './utils/colors';
 import {
-    loadSettings,
-    saveSettings
-} from './utils/config';
-import {
     getBlockMetrics,
     getSessionDuration,
     getTokenMetrics
@@ -24,6 +20,10 @@ import {
     preRenderAllWidgets,
     renderStatusLine
 } from './utils/renderer';
+import {
+    loadScopedSettings as loadSettings,
+    saveScopedSettings as saveSettings
+} from './utils/scoped-config';
 
 async function readStdin(): Promise<string | null> {
     // Check if stdin is a TTY (terminal) - if it is, there's no piped data

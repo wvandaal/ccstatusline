@@ -14,6 +14,10 @@ import React, {
 } from 'react';
 
 import type { Settings } from '../types/Settings';
+import type {
+    SettingsScope,
+    SettingsSources
+} from '../types/SettingsScope';
 import type { WidgetItem } from '../types/Widget';
 import {
     CCSTATUSLINE_COMMANDS,
@@ -25,15 +29,18 @@ import {
     uninstallStatusLine
 } from '../utils/claude-settings';
 import {
-    loadSettings,
-    saveSettings
-} from '../utils/config';
-import {
     checkPowerlineFonts,
     checkPowerlineFontsAsync,
     installPowerlineFonts,
     type PowerlineFontStatus
 } from '../utils/powerline';
+import {
+    createScopeSettings,
+    deleteScopeSettings,
+    getAllScopePaths,
+    loadScopedSettings,
+    saveScopedSettings
+} from '../utils/scoped-config';
 import { getPackageVersion } from '../utils/terminal';
 
 import {
@@ -44,7 +51,9 @@ import {
     ItemsEditor,
     LineSelector,
     MainMenu,
+    ManageScopesMenu,
     PowerlineSetup,
+    ScopeSaveDialog,
     StatusLinePreview,
     TerminalOptionsMenu,
     TerminalWidthMenu
@@ -55,7 +64,11 @@ export const App: React.FC = () => {
     const [settings, setSettings] = useState<Settings | null>(null);
     const [originalSettings, setOriginalSettings] = useState<Settings | null>(null);
     const [hasChanges, setHasChanges] = useState(false);
-    const [screen, setScreen] = useState<'main' | 'lines' | 'items' | 'colorLines' | 'colors' | 'terminalWidth' | 'terminalConfig' | 'globalOverrides' | 'confirm' | 'powerline' | 'install'>('main');
+    const [screen, setScreen] = useState<'main' | 'lines' | 'items' | 'colorLines' | 'colors' | 'terminalWidth' | 'terminalConfig' | 'globalOverrides' | 'confirm' | 'powerline' | 'install' | 'scopes' | 'scopeSave'>('main');
+    // Scope-related state
+    const [settingsSources, setSettingsSources] = useState<SettingsSources | null>(null);
+    const [saveScope, setSaveScope] = useState<SettingsScope>('user');
+    const scopePaths = getAllScopePaths();
     const [selectedLine, setSelectedLine] = useState(0);
     const [menuSelections, setMenuSelections] = useState<Record<string, number>>({});
     const [confirmDialog, setConfirmDialog] = useState<{ message: string; action: () => Promise<void> } | null>(null);
@@ -72,11 +85,21 @@ export const App: React.FC = () => {
         // Load existing status line
         void getExistingStatusLine().then(setExistingStatusLine);
 
-        void loadSettings().then((loadedSettings) => {
+        void loadScopedSettings({ includeSourceInfo: true }).then((resolved) => {
             // Set global chalk level based on settings (default to 256 colors for compatibility)
-            chalk.level = loadedSettings.colorLevel;
-            setSettings(loadedSettings);
-            setOriginalSettings(JSON.parse(JSON.stringify(loadedSettings)) as Settings); // Deep copy
+            chalk.level = resolved.settings.colorLevel;
+            setSettings(resolved.settings);
+            setOriginalSettings(JSON.parse(JSON.stringify(resolved.settings)) as Settings); // Deep copy
+            setSettingsSources(resolved.sources);
+
+            // Set default save scope based on loaded sources
+            if (resolved.sources.local) {
+                setSaveScope('local');
+            } else if (resolved.sources.project) {
+                setSaveScope('project');
+            } else {
+                setSaveScope('user');
+            }
         });
         void isInstalled().then(setIsClaudeInstalled);
 
@@ -121,14 +144,20 @@ export const App: React.FC = () => {
         if (key.ctrl && input === 'c') {
             exit();
         }
-        // Global save shortcut
+        // Global save shortcut - show scope dialog if multiple scopes exist
         if (key.ctrl && input === 's' && settings) {
-            void (async () => {
-                await saveSettings(settings);
-                setOriginalSettings(JSON.parse(JSON.stringify(settings)) as Settings);
-                setHasChanges(false);
-                setSaveMessage('✓ Configuration saved');
-            })();
+            const hasMultipleScopes = settingsSources
+                && (settingsSources.project !== null || settingsSources.local !== null);
+            if (hasMultipleScopes) {
+                setScreen('scopeSave');
+            } else {
+                void (async () => {
+                    await saveScopedSettings(settings, { scope: saveScope });
+                    setOriginalSettings(JSON.parse(JSON.stringify(settings)) as Settings);
+                    setHasChanges(false);
+                    setSaveMessage('✓ Configuration saved');
+                })();
+            }
         }
     });
 
@@ -208,11 +237,14 @@ export const App: React.FC = () => {
         case 'powerline':
             setScreen('powerline');
             break;
+        case 'scopes':
+            setScreen('scopes');
+            break;
         case 'install':
             handleInstallUninstall();
             break;
         case 'save':
-            await saveSettings(settings);
+            await saveScopedSettings(settings, { scope: saveScope });
             setOriginalSettings(JSON.parse(JSON.stringify(settings)) as Settings); // Update original after save
             setHasChanges(false);
             exit();
@@ -249,6 +281,12 @@ export const App: React.FC = () => {
                 <Text bold>
                     {` | ${getPackageVersion() && `v${getPackageVersion()}`}`}
                 </Text>
+                {settingsSources?.project && (
+                    <Text color='cyan' bold> [Project]</Text>
+                )}
+                {settingsSources?.local && (
+                    <Text color='yellow' bold> [Local]</Text>
+                )}
                 {saveMessage && (
                     <Text color='green' bold>
                         {`  ${saveMessage}`}
@@ -449,6 +487,58 @@ export const App: React.FC = () => {
                         installingFonts={installingFonts}
                         fontInstallMessage={fontInstallMessage}
                         onClearMessage={() => { setFontInstallMessage(null); }}
+                    />
+                )}
+                {screen === 'scopes' && settingsSources && (
+                    <ManageScopesMenu
+                        sources={settingsSources}
+                        scopePaths={scopePaths}
+                        saveScope={saveScope}
+                        onSetSaveScope={setSaveScope}
+                        onCreateScope={(scope) => {
+                            void (async () => {
+                                await createScopeSettings(scope, settings);
+                                // Reload settings to update sources
+                                const resolved = await loadScopedSettings({ includeSourceInfo: true });
+                                setSettingsSources(resolved.sources);
+                            })();
+                        }}
+                        onDeleteScope={(scope) => {
+                            void (async () => {
+                                await deleteScopeSettings(scope);
+                                // Reload settings to update sources
+                                const resolved = await loadScopedSettings({ includeSourceInfo: true });
+                                setSettings(resolved.settings);
+                                setSettingsSources(resolved.sources);
+                                // Reset save scope if we deleted the current one
+                                if (scope === saveScope) {
+                                    setSaveScope('user');
+                                }
+                            })();
+                        }}
+                        onBack={() => {
+                            setScreen('main');
+                        }}
+                    />
+                )}
+                {screen === 'scopeSave' && settingsSources && (
+                    <ScopeSaveDialog
+                        currentScope={saveScope}
+                        sources={settingsSources}
+                        scopePaths={scopePaths}
+                        onSelect={(scope) => {
+                            void (async () => {
+                                await saveScopedSettings(settings, { scope });
+                                setOriginalSettings(JSON.parse(JSON.stringify(settings)) as Settings);
+                                setHasChanges(false);
+                                setSaveMessage(`✓ Saved to ${scope}`);
+                                setSaveScope(scope);
+                                setScreen('main');
+                            })();
+                        }}
+                        onCancel={() => {
+                            setScreen('main');
+                        }}
                     />
                 )}
             </Box>
