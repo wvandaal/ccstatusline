@@ -59,7 +59,7 @@ export const TerminalOptionsMenu: React.FC<TerminalOptionsMenuProps> = ({ settin
                         // Switching to 256 color mode - remove hex colors
                         if (widget.color?.startsWith('hex:')) {
                             if (widget.type !== 'separator' && widget.type !== 'flex-separator') {
-                                const widgetImpl = getWidget(widget.type);
+                                const widgetImpl = getWidget(widget.type, settings);
                                 if (widgetImpl) {
                                     newWidget.color = widgetImpl.getDefaultColor();
                                 }
@@ -72,7 +72,7 @@ export const TerminalOptionsMenu: React.FC<TerminalOptionsMenuProps> = ({ settin
                         // Switching to truecolor mode - remove ansi256 colors
                         if (widget.color?.startsWith('ansi256:')) {
                             if (widget.type !== 'separator' && widget.type !== 'flex-separator') {
-                                const widgetImpl = getWidget(widget.type);
+                                const widgetImpl = getWidget(widget.type, settings);
                                 if (widgetImpl) {
                                     newWidget.color = widgetImpl.getDefaultColor();
                                 }
@@ -85,7 +85,7 @@ export const TerminalOptionsMenu: React.FC<TerminalOptionsMenuProps> = ({ settin
                         // Switching to 16 color mode - remove all custom colors
                         if (widget.color?.startsWith('ansi256:') || widget.color?.startsWith('hex:')) {
                             if (widget.type !== 'separator' && widget.type !== 'flex-separator') {
-                                const widgetImpl = getWidget(widget.type);
+                                const widgetImpl = getWidget(widget.type, settings);
                                 if (widgetImpl) {
                                     newWidget.color = widgetImpl.getDefaultColor();
                                 }
@@ -123,7 +123,7 @@ export const TerminalOptionsMenu: React.FC<TerminalOptionsMenuProps> = ({ settin
                     // Reset custom colors to defaults
                     if (widget.color?.startsWith('ansi256:') || widget.color?.startsWith('hex:')) {
                         if (widget.type !== 'separator' && widget.type !== 'flex-separator') {
-                            const widgetImpl = getWidget(widget.type);
+                            const widgetImpl = getWidget(widget.type, settings);
                             if (widgetImpl) {
                                 newWidget.color = widgetImpl.getDefaultColor();
                             }

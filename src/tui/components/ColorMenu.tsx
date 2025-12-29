@@ -43,7 +43,7 @@ export const ColorMenu: React.FC<ColorMenuProps> = ({ widgets, lineIndex, settin
             return showSeparators;
         }
         // Use the widget's supportsColors method
-        const widgetInstance = getWidget(widget.type);
+        const widgetInstance = getWidget(widget.type, settings);
         // Include unknown widgets (they might support colors, we just don't know)
         return widgetInstance ? widgetInstance.supportsColors(widget) : true;
     });
@@ -254,7 +254,7 @@ export const ColorMenu: React.FC<ColorMenuProps> = ({ widgets, lineIndex, settin
                             } else {
                                 let defaultColor = 'white';
                                 if (widget.type !== 'separator' && widget.type !== 'flex-separator') {
-                                    const widgetImpl = getWidget(widget.type);
+                                    const widgetImpl = getWidget(widget.type, settings);
                                     if (widgetImpl) {
                                         defaultColor = widgetImpl.getDefaultColor();
                                     }
@@ -310,7 +310,7 @@ export const ColorMenu: React.FC<ColorMenuProps> = ({ widgets, lineIndex, settin
             return 'Flex Separator';
         }
 
-        const widgetImpl = getWidget(widget.type);
+        const widgetImpl = getWidget(widget.type, settings);
         return widgetImpl ? widgetImpl.getDisplayName() : `Unknown: ${widget.type}`;
     };
 
@@ -330,7 +330,7 @@ export const ColorMenu: React.FC<ColorMenuProps> = ({ widgets, lineIndex, settin
         const level = getColorLevelString(settings.colorLevel);
         let defaultColor = 'white';
         if (widget.type !== 'separator' && widget.type !== 'flex-separator') {
-            const widgetImpl = getWidget(widget.type);
+            const widgetImpl = getWidget(widget.type, settings);
             if (widgetImpl) {
                 defaultColor = widgetImpl.getDefaultColor();
             }
@@ -362,7 +362,7 @@ export const ColorMenu: React.FC<ColorMenuProps> = ({ widgets, lineIndex, settin
         ? (selectedWidget?.backgroundColor ?? '')  // Empty string for 'none'
         : (selectedWidget ? (selectedWidget.color ?? (() => {
             if (selectedWidget.type !== 'separator' && selectedWidget.type !== 'flex-separator') {
-                const widgetImpl = getWidget(selectedWidget.type);
+                const widgetImpl = getWidget(selectedWidget.type, settings);
                 return widgetImpl ? widgetImpl.getDefaultColor() : 'white';
             }
             return 'white';

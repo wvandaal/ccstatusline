@@ -146,7 +146,7 @@ function renderPowerlineStatusLine(
         if (preRendered?.content) {
             widgetText = preRendered.content;
             // Get default color from widget impl for consistency
-            const widgetImpl = getWidget(widget.type);
+            const widgetImpl = getWidget(widget.type, settings);
             if (widgetImpl) {
                 defaultColor = widgetImpl.getDefaultColor();
             }
@@ -519,7 +519,7 @@ export function preRenderAllWidgets(
                 continue;
             }
 
-            const widgetImpl = getWidget(widget.type);
+            const widgetImpl = getWidget(widget.type, settings);
             if (!widgetImpl) {
                 // Unknown widget type - skip it entirely
                 continue;
@@ -735,7 +735,7 @@ export function renderStatusLine(
                     // Get the previous widget's colors
                     let widgetColor = prevWidget.color;
                     if (!widgetColor) {
-                        const widgetImpl = getWidget(prevWidget.type);
+                        const widgetImpl = getWidget(prevWidget.type, settings);
                         widgetColor = widgetImpl ? widgetImpl.getDefaultColor() : 'white';
                     }
                     separatorColor = widgetColor;
@@ -764,7 +764,7 @@ export function renderStatusLine(
             if (preRendered?.content) {
                 widgetText = preRendered.content;
                 // Get default color from widget impl for consistency
-                const widgetImpl = getWidget(widget.type);
+                const widgetImpl = getWidget(widget.type, settings);
                 if (widgetImpl) {
                     defaultColor = widgetImpl.getDefaultColor();
                 }
@@ -854,7 +854,7 @@ export function renderStatusLine(
                     // Use the widget's color if set, otherwise get the default color for that widget type
                     let widgetColor = prevElem.widget.color;
                     if (!widgetColor && prevElem.widget.type !== 'separator' && prevElem.widget.type !== 'flex-separator') {
-                        const widgetImpl = getWidget(prevElem.widget.type);
+                        const widgetImpl = getWidget(prevElem.widget.type, settings);
                         widgetColor = widgetImpl ? widgetImpl.getDefaultColor() : 'white';
                     }
                     const coloredSep = applyColorsWithOverride(defaultSep, widgetColor, prevElem.widget.backgroundColor, prevElem.widget.bold);

@@ -13,6 +13,7 @@ import React, {
     useState
 } from 'react';
 
+import type { CustomModule } from '../types/CustomModule';
 import type { Settings } from '../types/Settings';
 import type {
     SettingsScope,
@@ -46,12 +47,14 @@ import { getPackageVersion } from '../utils/terminal';
 import {
     ColorMenu,
     ConfirmDialog,
+    CustomModulesMenu,
     GlobalOverridesMenu,
     InstallMenu,
     ItemsEditor,
     LineSelector,
     MainMenu,
     ManageScopesMenu,
+    ModuleEditor,
     PowerlineSetup,
     ScopeSaveDialog,
     StatusLinePreview,
@@ -64,7 +67,7 @@ export const App: React.FC = () => {
     const [settings, setSettings] = useState<Settings | null>(null);
     const [originalSettings, setOriginalSettings] = useState<Settings | null>(null);
     const [hasChanges, setHasChanges] = useState(false);
-    const [screen, setScreen] = useState<'main' | 'lines' | 'items' | 'colorLines' | 'colors' | 'terminalWidth' | 'terminalConfig' | 'globalOverrides' | 'confirm' | 'powerline' | 'install' | 'scopes' | 'scopeSave'>('main');
+    const [screen, setScreen] = useState<'main' | 'lines' | 'items' | 'colorLines' | 'colors' | 'terminalWidth' | 'terminalConfig' | 'globalOverrides' | 'confirm' | 'powerline' | 'install' | 'scopes' | 'scopeSave' | 'customModules' | 'moduleEditor'>('main');
     // Scope-related state
     const [settingsSources, setSettingsSources] = useState<SettingsSources | null>(null);
     const [saveScope, setSaveScope] = useState<SettingsScope>('user');
@@ -80,6 +83,10 @@ export const App: React.FC = () => {
     const [existingStatusLine, setExistingStatusLine] = useState<string | null>(null);
     const [saveMessage, setSaveMessage] = useState<string | null>(null);
     const [previewIsTruncated, setPreviewIsTruncated] = useState(false);
+    // Module editor state
+    const [editingModule, setEditingModule] = useState<CustomModule | null>(null);
+    const [isNewModule, setIsNewModule] = useState(false);
+    const [moduleKind, setModuleKind] = useState<'text' | 'command'>('text');
 
     useEffect(() => {
         // Load existing status line
@@ -239,6 +246,9 @@ export const App: React.FC = () => {
             break;
         case 'scopes':
             setScreen('scopes');
+            break;
+        case 'customModules':
+            setScreen('customModules');
             break;
         case 'install':
             handleInstallUninstall();
@@ -538,6 +548,50 @@ export const App: React.FC = () => {
                         }}
                         onCancel={() => {
                             setScreen('main');
+                        }}
+                    />
+                )}
+                {screen === 'customModules' && (
+                    <CustomModulesMenu
+                        settings={settings}
+                        onUpdate={(updatedSettings) => {
+                            setSettings(updatedSettings);
+                        }}
+                        onBack={() => {
+                            setMenuSelections({ ...menuSelections, main: 6 });
+                            setScreen('main');
+                        }}
+                        onEditModule={(module, isNew, kind) => {
+                            setEditingModule(module);
+                            setIsNewModule(isNew);
+                            setModuleKind(kind);
+                            setScreen('moduleEditor');
+                        }}
+                    />
+                )}
+                {screen === 'moduleEditor' && (
+                    <ModuleEditor
+                        settings={settings}
+                        module={editingModule}
+                        isNew={isNewModule}
+                        kind={moduleKind}
+                        onSave={(module) => {
+                            const existingModules = settings.customModules;
+                            let newModules: CustomModule[];
+                            if (isNewModule) {
+                                newModules = [...existingModules, module];
+                            } else {
+                                // Replace existing module
+                                newModules = existingModules.map(m => m.name === editingModule?.name ? module : m
+                                );
+                            }
+                            setSettings({ ...settings, customModules: newModules });
+                            setEditingModule(null);
+                            setScreen('customModules');
+                        }}
+                        onCancel={() => {
+                            setEditingModule(null);
+                            setScreen('customModules');
                         }}
                     />
                 )}

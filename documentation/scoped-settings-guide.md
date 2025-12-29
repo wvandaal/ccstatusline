@@ -715,5 +715,6 @@ Local settings are automatically gitignored to:
 - [README.md](../README.md) - Main project documentation
 - [CLAUDE.md](../CLAUDE.md) - Development instructions
 - [custom-widgets-guide.md](./custom-widgets-guide.md) - Custom widgets documentation
+- [custom-modules-guide.md](./custom-modules-guide.md) - Reusable custom modules
 - [src/utils/scoped-config.ts](../src/utils/scoped-config.ts) - Core implementation
 - [src/types/SettingsScope.ts](../src/types/SettingsScope.ts) - Type definitions

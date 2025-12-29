@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
 import { ColorLevelSchema } from './ColorLevel';
+import { CustomModuleSchema } from './CustomModule';
 import { FlexModeSchema } from './FlexMode';
 import { PowerlineConfigSchema } from './PowerlineConfig';
 import { WidgetItemSchema } from './Widget';
 
 // Current version - bump this when making breaking changes to the schema
-export const CURRENT_VERSION = 3;
+export const CURRENT_VERSION = 4;
 
 // Schema for v1 settings (before version field was added)
 export const SettingsSchema_v1 = z.object({
@@ -25,6 +26,7 @@ export const SettingsSchema_v1 = z.object({
 // Main settings schema with defaults
 export const SettingsSchema = z.object({
     version: z.number().default(CURRENT_VERSION),
+    customModules: z.array(CustomModuleSchema).default([]),
     lines: z.array(z.array(WidgetItemSchema))
         .min(1)
         .default([

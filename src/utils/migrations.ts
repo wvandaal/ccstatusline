@@ -111,6 +111,23 @@ export const migrations: Migration[] = [
 
             return migrated;
         }
+    },
+    {
+        fromVersion: 3,
+        toVersion: 4,
+        description: 'Add custom modules support',
+        migrate: (data) => {
+            // Copy all existing data to v4
+            const migrated: Record<string, unknown> = { ...data };
+
+            // Update version to 4
+            migrated.version = 4;
+
+            // Initialize empty customModules array if not present
+            migrated.customModules ??= [];
+
+            return migrated;
+        }
     }
 ];
 

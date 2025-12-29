@@ -27,6 +27,8 @@ Both widgets support:
 - Bold styling
 - Merging with adjacent widgets
 
+> **Note:** For reusable configurations that appear in the widget type selector, see the [Custom Modules Guide](./custom-modules-guide.md). Custom Modules allow you to define text and command configurations once and reference them by name across multiple lines.
+
 ---
 
 ## CustomText Widget
@@ -457,5 +459,7 @@ Complete schema for widget configuration:
 
 - [README.md](../README.md) - Main project documentation
 - [CLAUDE.md](../CLAUDE.md) - Development instructions
+- [custom-modules-guide.md](./custom-modules-guide.md) - Reusable custom modules
+- [scoped-settings-guide.md](./scoped-settings-guide.md) - Hierarchical settings system
 - [src/widgets/](../src/widgets/) - Widget implementations
 - [src/utils/widgets.ts](../src/utils/widgets.ts) - Widget registry
