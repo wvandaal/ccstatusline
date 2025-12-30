@@ -74,53 +74,20 @@ export function getClaudeSettingsPath(): string {
 // ============================================================================
 
 /**
- * Gets the git root directory, or null if not in a git repo.
- */
-function getGitRoot(): string | null {
-    try {
-        return execSync('git rev-parse --show-toplevel', {
-            encoding: 'utf8',
-            stdio: ['pipe', 'pipe', 'ignore']
-        }).trim();
-    } catch {
-        return null;
-    }
-}
-
-/**
- * Finds the project root directory by searching upward from cwd for a .claude directory.
- * This matches Claude Code's behavior of using the most proximate .claude directory.
+ * Finds the project root directory for Claude Code settings.
  *
- * Search algorithm:
- * 1. Start at cwd
- * 2. Check if .claude directory exists
- * 3. If yes, use this as project root
- * 4. If no, move up one directory
- * 5. Stop at git root (don't search above it) or filesystem root
- * 6. If no .claude found, fall back to git root or cwd
+ * IMPORTANT: This matches Claude Code's actual behavior - it uses the current
+ * working directory only. Claude Code does NOT traverse upward to find .claude
+ * directories for settings.json resolution.
+ *
+ * This is different from CLAUDE.md files, which DO traverse upward.
+ * See: https://github.com/anthropics/claude-code/issues/12962
+ *
+ * Note: ccstatusline's own settings (in scoped-config.ts) use upward traversal
+ * for better monorepo support, but Claude Code integration must match their behavior.
  */
 export function getProjectRoot(): string {
-    const gitRoot = getGitRoot();
-    let currentDir = process.cwd();
-    const root = path.parse(currentDir).root;
-
-    while (currentDir !== root) {
-        const claudeDir = path.join(currentDir, '.claude');
-
-        if (fs.existsSync(claudeDir) && fs.statSync(claudeDir).isDirectory()) {
-            return currentDir;
-        }
-
-        // Don't search above git root
-        if (gitRoot && currentDir === gitRoot) {
-            break;
-        }
-
-        currentDir = path.dirname(currentDir);
-    }
-
-    // Fall back to git root or cwd
-    return gitRoot ?? process.cwd();
+    return process.cwd();
 }
 
 /**

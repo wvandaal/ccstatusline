@@ -64,8 +64,19 @@ function getGitRoot(): string | null {
 }
 
 /**
- * Finds the project root directory by searching upward from cwd for a .claude directory.
- * This matches Claude Code's behavior of using the most proximate .claude directory.
+ * Finds the project root directory for ccstatusline's own settings.
+ *
+ * IMPORTANT: This intentionally differs from Claude Code's settings resolution!
+ *
+ * - Claude Code settings (claude-settings.ts): Uses cwd only, no traversal
+ * - ccstatusline settings (this file): Searches upward for .claude directories
+ *
+ * Why the difference?
+ * - Claude Code doesn't support parent directory traversal for settings.json
+ *   (see: https://github.com/anthropics/claude-code/issues/12962)
+ * - ccstatusline provides enhanced monorepo support by finding the nearest
+ *   .claude/statusline directory, allowing nested projects to have their own
+ *   status line configurations while falling back to parent configs
  *
  * Search algorithm:
  * 1. Start at cwd
