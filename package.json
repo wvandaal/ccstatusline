@@ -23,6 +23,7 @@
     "test": "bun vitest",
     "docs": "typedoc",
     "docs:clean": "rm -rf docs"
+    "publish:prerelease": "bun run build && npm version prerelease && npm publish --access public --tag latest"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
