@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import chalk from 'chalk';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 import { runTUI } from './tui';
 import type {
@@ -24,6 +27,35 @@ import {
     loadScopedSettings as loadSettings,
     saveScopedSettings as saveSettings
 } from './utils/scoped-config';
+
+/**
+ * Writes the StatusJSON with timestamp to the session environment directory.
+ * Path: ~/.claude/session-env/{session_id}/status.json
+ */
+async function writeSessionStatus(data: StatusJSON): Promise<void> {
+    if (!data.session_id) {
+        return; // No session ID, can't write to session env
+    }
+
+    const sessionEnvDir = path.join(os.homedir(), '.claude', 'session-env', data.session_id);
+    const statusFilePath = path.join(sessionEnvDir, 'status.json');
+
+    const statusWithTimestamp = {
+        ...data,
+        timestamp: new Date().toISOString()
+    };
+
+    try {
+        await fs.promises.mkdir(sessionEnvDir, { recursive: true });
+        await fs.promises.writeFile(
+            statusFilePath,
+            JSON.stringify(statusWithTimestamp, null, 2),
+            'utf-8'
+        );
+    } catch {
+        // Silently fail - don't interrupt status line rendering
+    }
+}
 
 async function readStdin(): Promise<string | null> {
     // Check if stdin is a TTY (terminal) - if it is, there's no piped data
@@ -174,6 +206,9 @@ async function main() {
                     console.error('Invalid status JSON format:', result.error.message);
                     process.exit(1);
                 }
+
+                // Write status to session env directory (non-blocking)
+                void writeSessionStatus(result.data);
 
                 await renderMultipleLines(result.data);
             } catch (error) {
