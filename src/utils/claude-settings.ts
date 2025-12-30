@@ -74,19 +74,53 @@ export function getClaudeSettingsPath(): string {
 // ============================================================================
 
 /**
- * Finds the project root directory.
- * Uses git root if available, otherwise falls back to cwd.
+ * Gets the git root directory, or null if not in a git repo.
  */
-export function getProjectRoot(): string {
+function getGitRoot(): string | null {
     try {
-        const gitRoot = execSync('git rev-parse --show-toplevel', {
+        return execSync('git rev-parse --show-toplevel', {
             encoding: 'utf8',
             stdio: ['pipe', 'pipe', 'ignore']
         }).trim();
-        return gitRoot;
     } catch {
-        return process.cwd();
+        return null;
     }
+}
+
+/**
+ * Finds the project root directory by searching upward from cwd for a .claude directory.
+ * This matches Claude Code's behavior of using the most proximate .claude directory.
+ *
+ * Search algorithm:
+ * 1. Start at cwd
+ * 2. Check if .claude directory exists
+ * 3. If yes, use this as project root
+ * 4. If no, move up one directory
+ * 5. Stop at git root (don't search above it) or filesystem root
+ * 6. If no .claude found, fall back to git root or cwd
+ */
+export function getProjectRoot(): string {
+    const gitRoot = getGitRoot();
+    let currentDir = process.cwd();
+    const root = path.parse(currentDir).root;
+
+    while (currentDir !== root) {
+        const claudeDir = path.join(currentDir, '.claude');
+
+        if (fs.existsSync(claudeDir) && fs.statSync(claudeDir).isDirectory()) {
+            return currentDir;
+        }
+
+        // Don't search above git root
+        if (gitRoot && currentDir === gitRoot) {
+            break;
+        }
+
+        currentDir = path.dirname(currentDir);
+    }
+
+    // Fall back to git root or cwd
+    return gitRoot ?? process.cwd();
 }
 
 /**
