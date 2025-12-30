@@ -22,7 +22,7 @@
     "lint": "bun tsc --noEmit; eslint . --config eslint.config.js --max-warnings=999999 --fix",
     "test": "bun vitest",
     "docs": "typedoc",
-    "docs:clean": "rm -rf docs"
+    "docs:clean": "rm -rf docs",
     "publish:prerelease": "bun run build && npm version prerelease && npm publish --access public --tag latest"
   },
   "devDependencies": {
